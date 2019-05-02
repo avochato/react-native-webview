@@ -5,7 +5,10 @@ import android.annotation.TargetApi;
 import android.app.DownloadManager;
 import android.content.Context;
 import android.content.Intent;
+import android.Manifest;
+import android.support.v4.content.ContextCompat;
 import android.graphics.Bitmap;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -24,6 +27,7 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.PermissionRequest;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.LifecycleEventListener;
@@ -59,6 +63,7 @@ import java.net.URLEncoder;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.ArrayList;
 
 import javax.annotation.Nullable;
 
@@ -147,6 +152,40 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
         return true;
       }
 
+            // Fix WebRTC permission request error.
+      @Override
+      public void onPermissionRequest(final PermissionRequest request) {
+        String[] requestedResources = request.getResources();
+        ArrayList<String> permissions = new ArrayList<>();
+        ArrayList<String> grantedPermissions = new ArrayList<String>();
+        for (int i = 0; i < requestedResources.length; i++) {
+          if (requestedResources[i].equals(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) {
+            permissions.add(Manifest.permission.RECORD_AUDIO);
+          } else if (requestedResources[i].equals(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) {
+            permissions.add(Manifest.permission.CAMERA);
+          }
+          // TODO: RESOURCE_MIDI_SYSEX, RESOURCE_PROTECTED_MEDIA_ID.
+        }
+
+        for (int i = 0; i < permissions.size(); i++) {
+          if (ContextCompat.checkSelfPermission(reactContext, permissions.get(i)) != PackageManager.PERMISSION_GRANTED) {
+            continue;
+          }
+          if (permissions.get(i).equals(Manifest.permission.RECORD_AUDIO)) {
+            grantedPermissions.add(PermissionRequest.RESOURCE_AUDIO_CAPTURE);
+          } else if (permissions.get(i).equals(Manifest.permission.CAMERA)) {
+            grantedPermissions.add(PermissionRequest.RESOURCE_VIDEO_CAPTURE);
+          }
+        }
+
+        if (grantedPermissions.isEmpty()) {
+          request.deny();
+        } else {
+          String[] grantedPermissionsArray = new String[grantedPermissions.size()];
+          grantedPermissionsArray = grantedPermissions.toArray(grantedPermissionsArray);
+          request.grant(grantedPermissionsArray);
+        }
+      }
 
       @Override
       public void onProgressChanged(WebView webView, int newProgress) {
